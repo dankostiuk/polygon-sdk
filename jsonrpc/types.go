@@ -34,7 +34,6 @@ type uncle struct {
 	TxRoot       types.Hash     `json:"transactionsRoot"`
 	ReceiptsRoot types.Hash     `json:"receiptsRoot"`
 	LogsBloom    types.Bloom    `json:"logsBloom"`
-	TotalDifficulty argUint64		`json:"totalDifficulty"`
 	Difficulty   argUint64      `json:"difficulty"`
 	Number       argUint64      `json:"number"`
 	GasLimit     argUint64      `json:"gasLimit"`
@@ -75,7 +74,6 @@ func toUncle(u *types.Header) *uncle {
 		ReceiptsRoot: u.ReceiptsRoot,
 		LogsBloom:    u.LogsBloom,
 		Difficulty:   argUint64(u.Difficulty),
-		TotalDifficulty: argUint64(0),
 		Number:       argUint64(u.Number),
 		GasLimit:     argUint64(u.GasLimit),
 		GasUsed:      argUint64(u.GasUsed),
@@ -95,7 +93,7 @@ type block struct {
 	TxRoot       types.Hash     `json:"transactionsRoot"`
 	ReceiptsRoot types.Hash     `json:"receiptsRoot"`
 	LogsBloom    types.Bloom    `json:"logsBloom"`
-	TotalDifficulty argUint64		`json:"totalDifficulty"`
+	Size 				 argUint64			`json:"size"`
 	Difficulty   argUint64      `json:"difficulty"`
 	Number       argUint64      `json:"number"`
 	GasLimit     argUint64      `json:"gasLimit"`
@@ -104,7 +102,7 @@ type block struct {
 	ExtraData    argBytes       `json:"extraData"`
 	MixHash      types.Hash     `json:"mixHash"`
 	Nonce        types.Nonce    `json:"nonce"`
-	Hash         types.Hash     `json:"minerHash"`
+	Hash         types.Hash     `json:"hash"`
 	Transactions []*transaction `json:"transactions"`
 	Uncles			 []*uncle	`json:"uncles"`
 }
@@ -120,7 +118,7 @@ func toBlock(b *types.Block) *block {
 		ReceiptsRoot: h.ReceiptsRoot,
 		LogsBloom:    h.LogsBloom,
 		Difficulty:   argUint64(h.Difficulty),
-		TotalDifficulty: argUint64(0),
+		Size:					argUint64(1024), // needed for BlockScout explorer
 		Number:       argUint64(h.Number),
 		GasLimit:     argUint64(h.GasLimit),
 		GasUsed:      argUint64(h.GasUsed),
