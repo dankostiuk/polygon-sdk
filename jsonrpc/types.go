@@ -144,7 +144,7 @@ type receipt struct {
 	CumulativeGasUsed argUint64            `json:"cumulativeGasUsed"`
 	LogsBloom         types.Bloom          `json:"logsBloom"`
 	Logs              []*Log               `json:"logs"`
-	//Status            *types.ReceiptStatus `json:"status"`
+	Status            argUint64            `json:"status"`
 	TxHash            types.Hash           `json:"transactionHash"`
 	TxIndex           argUint64            `json:"transactionIndex"`
 	BlockHash         types.Hash           `json:"blockHash"`
