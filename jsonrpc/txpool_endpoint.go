@@ -37,6 +37,16 @@ func (t *Txpool) Content() (interface{}, error) {
 		for nonce, tx := range nonces {
 			blockHash, _ := t.d.store.ReadTxLookup(tx.Hash)
 			block, _ := t.d.store.GetBlockByHash(blockHash, false)
+			// handle genesis block case
+			if block == nil {
+				block = &types.Block{
+					Header: &types.Header{
+						Hash: blockHash,
+						Number: uint64(0),
+					},
+				}
+			}
+				
 			// using 0 as txIndex
 			pendingRpcTxns[address][nonce] = toTransaction(tx, block, 0)
 		}
@@ -47,6 +57,15 @@ func (t *Txpool) Content() (interface{}, error) {
 		for nonce, tx := range nonces {
 			blockHash, _ := t.d.store.ReadTxLookup(tx.Hash)
 			block, _ := t.d.store.GetBlockByHash(blockHash, false)
+			// handle genesis block case
+			if block == nil {
+				block = &types.Block{
+					Header: &types.Header{
+						Hash: blockHash,
+						Number: uint64(0),
+					},
+				}
+			}
 			// using 0 as txIndex
 			queuedRpcTxns[address][nonce] = toTransaction(tx, block, 0)
 		}
