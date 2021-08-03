@@ -60,7 +60,7 @@ type gethQueuedTransaction struct {
 	TxIndex     argUint64      `json:"transactionIndex"`
 }
 
-func toGethPendingTransaction(t *types.Transaction) *gethPendingTransaction {
+func toGethPendingTransaction(t *types.Transaction, b *types.Block) *gethPendingTransaction {
 	if t.R == nil {
 		t.R = []byte{0}
 	}
@@ -79,7 +79,7 @@ func toGethPendingTransaction(t *types.Transaction) *gethPendingTransaction {
 		S:           argBytes(t.S),
 		Hash:        t.Hash,
 		From:        t.From,
-		BlockHash: 	 nil,
+		BlockHash: 	 b.Hash(),
 		BlockNumber: nil,
 		TxIndex: 		 nil,
 	}
@@ -119,7 +119,18 @@ func (t *Txpool) Content() (interface{}, error) {
 	for address, nonces := range pendingTxs {
 		pendingRpcTxns[address] = make(map[uint64]*gethPendingTransaction)
 		for nonce, tx := range nonces {
-			pendingRpcTxns[address][nonce] = toGethPendingTransaction(tx)
+			blockHash, _ := t.d.store.ReadTxLookup(tx.Hash)
+			block, _ := t.d.store.GetBlockByHash(blockHash, false)
+			// handle genesis block case
+			if block == nil {
+				block = &types.Block{
+					Header: &types.Header{
+						Hash: blockHash,
+						Number: uint64(0),
+					},
+				}
+			}
+			pendingRpcTxns[address][nonce] = toGethPendingTransaction(tx, block)
 		}
   }
 	queuedRpcTxns := make(map[types.Address]map[uint64]*gethQueuedTransaction)
