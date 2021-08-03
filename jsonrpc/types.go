@@ -86,49 +86,51 @@ func toUncle(u *types.Header) *uncle {
 }
 
 type block struct {
-	ParentHash   types.Hash     `json:"parentHash"`
-	Sha3Uncles   types.Hash     `json:"sha3Uncles"`
-	Miner        types.Address  `json:"miner"`
-	StateRoot    types.Hash     `json:"stateRoot"`
-	TxRoot       types.Hash     `json:"transactionsRoot"`
-	ReceiptsRoot types.Hash     `json:"receiptsRoot"`
-	LogsBloom    types.Bloom    `json:"logsBloom"`
-	Size 				 argUint64			`json:"size"`
-	Difficulty   argUint64      `json:"difficulty"`
-	Number       argUint64      `json:"number"`
-	GasLimit     argUint64      `json:"gasLimit"`
-	GasUsed      argUint64      `json:"gasUsed"`
-	Timestamp    argUint64      `json:"timestamp"`
-	ExtraData    argBytes       `json:"extraData"`
-	MixHash      types.Hash     `json:"mixHash"`
-	Nonce        types.Nonce    `json:"nonce"`
-	Hash         types.Hash     `json:"hash"`
-	Transactions []*transaction `json:"transactions"`
-	Uncles			 []*uncle	`json:"uncles"`
+	ParentHash      types.Hash     `json:"parentHash"`
+	Sha3Uncles      types.Hash     `json:"sha3Uncles"`
+	Miner           types.Address  `json:"miner"`
+	StateRoot       types.Hash     `json:"stateRoot"`
+	TxRoot          types.Hash     `json:"transactionsRoot"`
+	ReceiptsRoot    types.Hash     `json:"receiptsRoot"`
+	LogsBloom       types.Bloom    `json:"logsBloom"`
+	Size            argUint64			 `json:"size"`
+	Difficulty      argUint64      `json:"difficulty"`
+	TotalDifficulty argUint64      `json:"totalDifficulty"`
+	Number          argUint64      `json:"number"`
+	GasLimit        argUint64      `json:"gasLimit"`
+	GasUsed         argUint64      `json:"gasUsed"`
+	Timestamp       argUint64      `json:"timestamp"`
+	ExtraData       argBytes       `json:"extraData"`
+	MixHash         types.Hash     `json:"mixHash"`
+	Nonce           types.Nonce    `json:"nonce"`
+	Hash            types.Hash     `json:"hash"`
+	Transactions    []*transaction `json:"transactions"`
+	Uncles          []*uncle       `json:"uncles"`
 }
 
 func toBlock(b *types.Block) *block {
 	h := b.Header
 	res := &block{
-		ParentHash:   h.ParentHash,
-		Sha3Uncles:   h.Sha3Uncles,
-		Miner:        h.Miner,
-		StateRoot:    h.StateRoot,
-		TxRoot:       h.TxRoot,
-		ReceiptsRoot: h.ReceiptsRoot,
-		LogsBloom:    h.LogsBloom,
-		Difficulty:   argUint64(h.Difficulty),
-		Size:					argUint64(1024), // needed for BlockScout explorer
-		Number:       argUint64(h.Number),
-		GasLimit:     argUint64(h.GasLimit),
-		GasUsed:      argUint64(h.GasUsed),
-		Timestamp:    argUint64(h.Timestamp),
-		ExtraData:    argBytes(h.ExtraData),
-		MixHash:      h.MixHash,
-		Nonce:        h.Nonce,
-		Hash:         h.Hash,
-		Transactions: []*transaction{},
-		Uncles:			 	[]*uncle{},
+		ParentHash:      h.ParentHash,
+		Sha3Uncles:      h.Sha3Uncles,
+		Miner:           h.Miner,
+		StateRoot:       h.StateRoot,
+		TxRoot:          h.TxRoot,
+		ReceiptsRoot:    h.ReceiptsRoot,
+		LogsBloom:       h.LogsBloom,
+		Difficulty:      argUint64(h.Difficulty),
+		TotalDifficulty: argUint64(0), // needed for BlockScout explorer
+		Size:            argUint64(1024), // needed for BlockScout explorer
+		Number:          argUint64(h.Number),
+		GasLimit:        argUint64(h.GasLimit),
+		GasUsed:         argUint64(h.GasUsed),
+		Timestamp:       argUint64(h.Timestamp),
+		ExtraData:       argBytes(h.ExtraData),
+		MixHash:         h.MixHash,
+		Nonce:           h.Nonce,
+		Hash:            h.Hash,
+		Transactions:    []*transaction{},
+		Uncles:          []*uncle{},
 	}
 	for idx, txn := range b.Transactions {
 		res.Transactions = append(res.Transactions, toTransaction(txn, b, idx))
