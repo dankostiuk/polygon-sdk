@@ -227,7 +227,10 @@ func (d *Dispatcher) HandleWs(reqBody []byte, conn wsConn) ([]byte, error) {
 func (d *Dispatcher) Handle(reqBody []byte) ([]byte, error) {
 
 	x := bytes.TrimLeft(reqBody, " \t\r\n")
-	if len(x) == 0 || x[0] != '[' {
+	if len(x) == 0 {
+		return nil, invalidJSONRequest
+	}
+	if x[0] == '{' {
 		var req Request
 		if err := json.Unmarshal(reqBody, &req); err != nil {
 			return nil, invalidJSONRequest
@@ -238,13 +241,13 @@ func (d *Dispatcher) Handle(reqBody []byte) ([]byte, error) {
 	// handle batch requests
 	var requests []Request
 	if err := json.Unmarshal(reqBody, &requests); err != nil {
-		return nil, d.internalError("batched method", err)
+		return nil, d.internalError("batch method", err)
 	}
 	var responses []Response
 	for _, req := range requests {
 		var response, err = d.handleReq(req)
 		if err != nil {
-			d.logger.Debug("failed to dispatch", "method", "batched method", "err", err)
+			d.internalError("batch method", err)
 			errorResponse := Response{
 				ID: req.ID,
 				JSONRPC: "2.0",
@@ -254,10 +257,10 @@ func (d *Dispatcher) Handle(reqBody []byte) ([]byte, error) {
 			continue
 		}
 	
-		// unmarshal response from handleReq so that we can re-marshal as batched responses
+		// unmarshal response from handleReq so that we can re-marshal as batch responses
 		var resp Response
 		if err := json.Unmarshal(response, &resp); err != nil {
-			d.logger.Debug("failed to dispatch", "method", "batched method", "err", err)
+			d.internalError("batch method", err)
 			errorResponse := Response{
 				ID: req.ID,
 				JSONRPC: "2.0",
@@ -271,7 +274,7 @@ func (d *Dispatcher) Handle(reqBody []byte) ([]byte, error) {
 	
 	respBytes, err := json.Marshal(responses)
 	if err != nil {
-		return nil, d.internalError("batched method", err)
+		return nil, d.internalError("batch method", err)
 	}
 	return respBytes, nil
 }
