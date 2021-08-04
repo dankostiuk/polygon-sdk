@@ -7,8 +7,7 @@ type Net struct {
 
 // Version returns the current network id
 func (n *Net) Version() (interface{}, error) {
-	//return fmt.Sprintf("%x", n.d.chainID), nil
-	return argUintPtr(n.d.chainID), nil
+	return n.d.chainID, nil
 }
 
 // Listening returns true if client is actively listening for network connections
