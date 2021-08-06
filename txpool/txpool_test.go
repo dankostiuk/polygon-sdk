@@ -126,6 +126,7 @@ func TestGetPendingAndQueuedTransactions(t *testing.T) {
 	txn0 := &types.Transaction{
 		From:     from1,
 		Nonce:    0,
+		Gas:      validGasLimit,
 		Value:    big.NewInt(106),
 		GasPrice: big.NewInt(1),
 	}
@@ -135,6 +136,8 @@ func TestGetPendingAndQueuedTransactions(t *testing.T) {
 	txn1 := &types.Transaction{
 		From:     from2,
 		Nonce:    1,
+		Gas:      validGasLimit,
+		Value:    big.NewInt(106),
 		GasPrice: big.NewInt(1),
 	}
 	assert.NoError(t, pool.addImpl("", txn1))
