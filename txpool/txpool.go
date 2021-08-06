@@ -220,7 +220,9 @@ func (t *TxPool) GetTxs() (map[types.Address]map[uint64]*types.Transaction, map[
 	queue := t.queue
 	for addr, queuedTxn := range queue {
 		for _, tx := range queuedTxn.txs {
-			queuedTxs[addr] = make(map[uint64]*types.Transaction)
+			if _, ok := queuedTxs[addr]; !ok {
+				queuedTxs[addr] = make(map[uint64]*types.Transaction)
+			}
 			queuedTxs[addr][tx.Nonce] = tx
 		}
 	}

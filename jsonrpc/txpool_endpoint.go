@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/0xPolygon/minimal/types"
 )
@@ -12,8 +13,8 @@ type Txpool struct {
 }
 
 type ContentResponse struct {
-	Pending map[types.Address]map[uint64]*gethPendingTransaction `json:"pending"`
-	Queued  map[types.Address]map[uint64]*gethQueuedTransaction  `json:"queued"`
+	Pending map[types.Address]map[uint64]*txpoolTransaction `json:"pending"`
+	Queued  map[types.Address]map[uint64]*txpoolTransaction `json:"queued"`
 }
 
 type InspectResponse struct {
@@ -26,21 +27,7 @@ type StatusResponse struct {
 	Queued  uint64 `json:"queued"`
 }
 
-type gethPendingTransaction struct {
-	Nonce       argUint64      `json:"nonce"`
-	GasPrice    argBig         `json:"gasPrice"`
-	Gas         argUint64      `json:"gas"`
-	To          *types.Address `json:"to"`
-	Value       argBig         `json:"value"`
-	Input       argBytes       `json:"input"`
-	Hash        types.Hash     `json:"hash"`
-	From        types.Address  `json:"from"`
-	BlockHash   interface{}    `json:"blockHash"`
-	BlockNumber interface{}    `json:"blockNumber"`
-	TxIndex     interface{}    `json:"transactionIndex"`
-}
-
-type gethQueuedTransaction struct {
+type txpoolTransaction struct {
 	Nonce       argUint64      `json:"nonce"`
 	GasPrice    argBig         `json:"gasPrice"`
 	Gas         argUint64      `json:"gas"`
@@ -50,13 +37,13 @@ type gethQueuedTransaction struct {
 	Hash        types.Hash     `json:"hash"`
 	From        types.Address  `json:"from"`
 	BlockHash   types.Hash     `json:"blockHash"`
-	BlockNumber argUint64      `json:"blockNumber"`
-	TxIndex     argUint64      `json:"transactionIndex"`
+	BlockNumber interface{}    `json:"blockNumber"`
+	TxIndex     interface{}    `json:"transactionIndex"`
 }
 
-func toGethPendingTransaction(t *types.Transaction, b *types.Block) *gethPendingTransaction {
+func toTxPoolTransaction(t *types.Transaction) *txpoolTransaction {
 
-	return &gethPendingTransaction{
+	return &txpoolTransaction{
 		Nonce:       argUint64(t.Nonce),
 		GasPrice:    argBig(*t.GasPrice),
 		Gas:         argUint64(t.Gas),
@@ -65,69 +52,28 @@ func toGethPendingTransaction(t *types.Transaction, b *types.Block) *gethPending
 		Input:       argBytes(t.Input),
 		Hash:        t.Hash,
 		From:        t.From,
-		BlockHash:   b.Hash(),
+		BlockHash:   types.ZeroHash,
 		BlockNumber: nil,
 		TxIndex:     nil,
 	}
 }
 
-func toGethQueuedTransaction(t *types.Transaction, b *types.Block, txIndex int) *gethQueuedTransaction {
-
-	return &gethQueuedTransaction{
-		Nonce:       argUint64(t.Nonce),
-		GasPrice:    argBig(*t.GasPrice),
-		Gas:         argUint64(t.Gas),
-		To:          t.To,
-		Value:       argBig(*t.Value),
-		Input:       argBytes(t.Input),
-		Hash:        t.Hash,
-		From:        t.From,
-		BlockHash:   b.Hash(),
-		BlockNumber: argUint64(b.Number()),
-		TxIndex:     argUint64(txIndex),
-	}
-}
-
-/**
- * Content - implemented according to https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_content
- */
+// Create response for txpool_content request.
+// See https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_content.
 func (t *Txpool) Content() (interface{}, error) {
 	pendingTxs, queuedTxs := t.d.store.GetTxs()
-	pendingRpcTxns := make(map[types.Address]map[uint64]*gethPendingTransaction)
+	pendingRpcTxns := make(map[types.Address]map[uint64]*txpoolTransaction)
 	for address, nonces := range pendingTxs {
-		pendingRpcTxns[address] = make(map[uint64]*gethPendingTransaction)
+		pendingRpcTxns[address] = make(map[uint64]*txpoolTransaction)
 		for nonce, tx := range nonces {
-			blockHash, _ := t.d.store.ReadTxLookup(tx.Hash)
-			block, _ := t.d.store.GetBlockByHash(blockHash, false)
-			// handle genesis block case
-			if block == nil {
-				block = &types.Block{
-					Header: &types.Header{
-						Hash:   blockHash,
-						Number: uint64(0),
-					},
-				}
-			}
-			pendingRpcTxns[address][nonce] = toGethPendingTransaction(tx, block)
+			pendingRpcTxns[address][nonce] = toTxPoolTransaction(tx)
 		}
 	}
-	queuedRpcTxns := make(map[types.Address]map[uint64]*gethQueuedTransaction)
+	queuedRpcTxns := make(map[types.Address]map[uint64]*txpoolTransaction)
 	for address, nonces := range queuedTxs {
-		queuedRpcTxns[address] = make(map[uint64]*gethQueuedTransaction)
+		queuedRpcTxns[address] = make(map[uint64]*txpoolTransaction)
 		for nonce, tx := range nonces {
-			blockHash, _ := t.d.store.ReadTxLookup(tx.Hash)
-			block, _ := t.d.store.GetBlockByHash(blockHash, false)
-			// handle genesis block case
-			if block == nil {
-				block = &types.Block{
-					Header: &types.Header{
-						Hash:   blockHash,
-						Number: uint64(0),
-					},
-				}
-			}
-			// using 0 as txIndex
-			queuedRpcTxns[address][nonce] = toGethQueuedTransaction(tx, block, 0)
+			queuedRpcTxns[address][nonce] = toTxPoolTransaction(tx)
 		}
 	}
 
@@ -139,9 +85,8 @@ func (t *Txpool) Content() (interface{}, error) {
 	return resp, nil
 }
 
-/**
- * Inspect - implemented according to https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_inspect
- */
+// Create response for txpool_inspect request.
+// See https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_inspect.
 func (t *Txpool) Inspect() (interface{}, error) {
 
 	pendingTxs, queuedTxs := t.d.store.GetTxs()
@@ -150,7 +95,7 @@ func (t *Txpool) Inspect() (interface{}, error) {
 		pendingRpcTxns[address.String()] = make(map[string]string)
 		for nonce, tx := range nonces {
 			msg := fmt.Sprintf("%d wei + %d gas x %d wei", tx.Value, tx.Gas, tx.GasPrice)
-			pendingRpcTxns[address.String()][fmt.Sprint(nonce)] = msg
+			pendingRpcTxns[address.String()][strconv.FormatUint(nonce, 10)] = msg
 		}
 	}
 
@@ -159,7 +104,7 @@ func (t *Txpool) Inspect() (interface{}, error) {
 		queuedRpcTxns[address.String()] = make(map[string]string)
 		for nonce, tx := range nonces {
 			msg := fmt.Sprintf("%d wei + %d gas x %d wei", tx.Value, tx.Gas, tx.GasPrice)
-			queuedRpcTxns[address.String()][fmt.Sprint(nonce)] = msg
+			queuedRpcTxns[address.String()][strconv.FormatUint(nonce, 10)] = msg
 		}
 	}
 
@@ -171,9 +116,8 @@ func (t *Txpool) Inspect() (interface{}, error) {
 	return resp, nil
 }
 
-/**
- * Status - implemented according to https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_content
- */
+// Create response for txpool_status request.
+// See https://geth.ethereum.org/docs/rpc/ns-txpool#txpool_status.
 func (t *Txpool) Status() (interface{}, error) {
 	pendingTxs, queuedTxs := t.d.store.GetTxs()
 	var pendingCount int
