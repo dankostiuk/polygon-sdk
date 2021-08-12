@@ -459,6 +459,9 @@ func (d *Dispatcher) getBlockHeaderImpl(number BlockNumber) (*types.Header, erro
 }
 
 func (d *Dispatcher) getNextNonce(address types.Address, number BlockNumber) (uint64, error) {
+	if address == types.ZeroAddress {
+		return 0, nil
+	}
 	if number == PendingBlockNumber {
 		res, ok := d.store.GetNonce(address)
 		if ok {
