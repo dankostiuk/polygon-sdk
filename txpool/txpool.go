@@ -346,6 +346,9 @@ func (t *TxPool) validateTx(tx *types.Transaction) error {
 		return ErrInvalidAccountState
 	}
 
+	t.logger.Debug("INVESTIGATE - accountBalance: ", accountBalance)
+	t.logger.Debug("INVESTIGATE - txCost: ", tx.Cost())
+
 	// Check if the sender has enough funds to execute the transaction
 	if accountBalance.Cmp(tx.Cost()) < 0 {
 		return ErrInsufficientFunds
