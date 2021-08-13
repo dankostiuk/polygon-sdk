@@ -242,6 +242,7 @@ func (t *TxPool) GetTxs() (map[types.Address]map[uint64]*types.Transaction, map[
 	return pendingTxs, queuedTxs
 }
 
+// Length returns the size of the valid transactions in the txpool
 func (t *TxPool) Length() uint64 {
 	return t.pendingQueue.Length()
 }
