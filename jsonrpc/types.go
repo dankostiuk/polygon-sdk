@@ -27,6 +27,14 @@ type transaction struct {
 }
 
 func toTransaction(t *types.Transaction, b *types.Block, txIndex int) *transaction {
+	// argBytes will format nil as "0x" which isn't an acceptable value, therefore we set to be "0x0"
+	if t.R == nil {
+		t.R = []byte{0}
+	}
+	if t.S == nil {
+		t.S = []byte{0}
+	}
+
 	return &transaction{
 		Nonce:       argUint64(t.Nonce),
 		GasPrice:    argBig(*t.GasPrice),
