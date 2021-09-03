@@ -197,8 +197,12 @@ func (e *Eth) GetStorageAt(address types.Address, index types.Hash, number Block
 	// Get the storage for the passed in location
 	result, err := e.d.store.GetStorage(header.StateRoot, address, index)
 	if err != nil {
+		if err == ErrStateNotFound {
+			return argBytesPtr(types.ZeroHash[:]), nil
+		}
 		return nil, err
 	}
+
 	return argBytesPtr(result), nil
 }
 
@@ -457,6 +461,9 @@ func (e *Eth) GetBalance(address types.Address, number BlockNumber) (interface{}
 func (e *Eth) GetTransactionCount(address types.Address, number BlockNumber) (interface{}, error) {
 	nonce, err := e.d.getNextNonce(address, number)
 	if err != nil {
+		if err == ErrStateNotFound {
+			return argUintPtr(0), nil
+		}
 		return nil, err
 	}
 	return argUintPtr(nonce), nil
