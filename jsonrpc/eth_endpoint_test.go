@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/0xPolygon/polygon-sdk/chain"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
+	"github.com/umbracle/fastrlp"
 
 	"github.com/0xPolygon/polygon-sdk/helper/hex"
 	"github.com/0xPolygon/polygon-sdk/state"
@@ -20,10 +22,10 @@ type mockAccount2 struct {
 	address types.Address
 	code    []byte
 	account *state.Account
-	storage map[types.Hash]types.Hash
+	storage map[types.Hash][]byte
 }
 
-func (m *mockAccount2) Storage(k, v types.Hash) {
+func (m *mockAccount2) Storage(k types.Hash, v []byte) {
 	m.storage[k] = v
 }
 
@@ -46,6 +48,10 @@ type mockAccountStore struct {
 	accounts map[types.Address]*mockAccount2
 }
 
+func (m *mockAccountStore) GetForksInTime(blockNumber uint64) chain.ForksInTime {
+	panic("implement me")
+}
+
 func (m *mockAccountStore) AddAccount(addr types.Address) *mockAccount2 {
 	if m.accounts == nil {
 		m.accounts = map[types.Address]*mockAccount2{}
@@ -54,7 +60,7 @@ func (m *mockAccountStore) AddAccount(addr types.Address) *mockAccount2 {
 		store:   m,
 		address: addr,
 		account: &state.Account{},
-		storage: map[types.Hash]types.Hash{},
+		storage: make(map[types.Hash][]byte),
 	}
 	m.accounts[addr] = acct
 	return acct
@@ -90,12 +96,17 @@ func (m *mockAccountStore) GetStorage(root types.Hash, addr types.Address, slot 
 	if !ok {
 		return nil, ErrStateNotFound
 	}
-	return val.Bytes(), nil
+	return val, nil
 }
 
 type mockBlockStore2 struct {
 	nullBlockchainInterface
 	blocks []*types.Block
+	topics []types.Hash
+}
+
+func (m *mockBlockStore2) GetForksInTime(blockNumber uint64) chain.ForksInTime {
+	panic("implement me")
 }
 
 func (m *mockBlockStore2) add(blocks ...*types.Block) {
@@ -117,9 +128,13 @@ func (m *mockBlockStore2) GetReceiptsByHash(hash types.Hash) ([]*types.Receipt, 
 						},
 					},
 					{
+<<<<<<< HEAD
 						Topics: []types.Hash{
 							types.StringToHash("4"), types.StringToHash("5"), types.StringToHash("6"),
 						},
+=======
+						Topics: m.topics,
+>>>>>>> develop
 					},
 				},
 			},
@@ -138,9 +153,13 @@ func (m *mockBlockStore2) GetReceiptsByHash(hash types.Hash) ([]*types.Receipt, 
 			{
 				Logs: []*types.Log{
 					{
+<<<<<<< HEAD
 						Topics: []types.Hash{
 							types.StringToHash("4"), types.StringToHash("5"), types.StringToHash("6"),
 						},
+=======
+						Topics: m.topics,
+>>>>>>> develop
 					},
 				},
 			},
@@ -150,9 +169,13 @@ func (m *mockBlockStore2) GetReceiptsByHash(hash types.Hash) ([]*types.Receipt, 
 			{
 				Logs: []*types.Log{
 					{
+<<<<<<< HEAD
 						Topics: []types.Hash{
 							types.StringToHash("4"), types.StringToHash("5"), types.StringToHash("6"),
 						},
+=======
+						Topics: m.topics,
+>>>>>>> develop
 					},
 				},
 			},
@@ -287,16 +310,16 @@ func TestEth_Block_BlockNumber(t *testing.T) {
 func TestEth_Block_GetLogs(t *testing.T) {
 
 	// Topics we're searching for
-	var topics = [][]types.Hash{
-		{types.StringToHash("4")},
-		{types.StringToHash("5")},
-		{types.StringToHash("6")},
-	}
+	topic1 := types.StringToHash("4")
+	topic2 := types.StringToHash("5")
+	topic3 := types.StringToHash("6")
+	var topics = [][]types.Hash{{topic1}, {topic2}, {topic3}}
 
 	testTable := []struct {
-		name          string
-		filterOptions *LogFilter
-		shouldFail    bool
+		name           string
+		filterOptions  *LogFilter
+		shouldFail     bool
+		expectedLength int
 	}{
 		{"Found matching logs, fromBlock < toBlock",
 			&LogFilter{
@@ -304,28 +327,29 @@ func TestEth_Block_GetLogs(t *testing.T) {
 				toBlock:   3,
 				Topics:    topics,
 			},
-			false},
+			false, 3},
 		{"Found matching logs, fromBlock == toBlock",
 			&LogFilter{
 				fromBlock: 2,
 				toBlock:   2,
 				Topics:    topics,
 			},
-			false},
+			false, 1},
 		{"No logs found", &LogFilter{
 			fromBlock: 4,
 			toBlock:   5,
 			Topics:    topics,
-		}, false},
+		}, false, 0},
 		{"Invalid block range", &LogFilter{
 			fromBlock: 10,
 			toBlock:   5,
 			Topics:    topics,
-		}, true},
+		}, true, 0},
 	}
 
 	// setup test
 	store := &mockBlockStore2{}
+	store.topics = []types.Hash{topic1, topic2, topic3}
 	for i := 0; i < 4; i++ {
 		store.add(&types.Block{
 			Header: &types.Header{
@@ -346,14 +370,7 @@ func TestEth_Block_GetLogs(t *testing.T) {
 				// If there is an error and test isn't expected to fail
 				t.Fatalf("Error: %v", logError)
 			} else if !testCase.shouldFail {
-				switch testCase.name {
-				case "Found matching logs, fromBlock < toBlock":
-					assert.Lenf(t, foundLogs, 3, "Invalid number of logs found")
-				case "Found matching logs, toBlock == fromBlock":
-					assert.Lenf(t, foundLogs, 1, "Invalid number of logs found")
-				case "No logs found":
-					assert.Lenf(t, foundLogs, 0, "Invalid number of logs found")
-				}
+				assert.Lenf(t, foundLogs, testCase.expectedLength, "Invalid number of logs found")
 			}
 		})
 	}
@@ -578,7 +595,10 @@ func TestEth_State_GetStorageAt(t *testing.T) {
 			for addr, storage := range tt.initialStorage {
 				account := store.AddAccount(addr)
 				for index, data := range storage {
-					account.Storage(index, data)
+					a := &fastrlp.Arena{}
+					value := a.NewBytes(data.Bytes())
+					newData := value.MarshalTo(nil)
+					account.Storage(index, newData)
 				}
 			}
 			dispatcher := newTestDispatcher(hclog.NewNullLogger(), store)
@@ -598,6 +618,10 @@ type mockStoreTxn struct {
 	nullBlockchainInterface
 
 	txn *types.Transaction
+}
+
+func (m *mockStoreTxn) GetForksInTime(blockNumber uint64) chain.ForksInTime {
+	panic("implement me")
 }
 
 func (m *mockStoreTxn) AddTx(tx *types.Transaction) error {

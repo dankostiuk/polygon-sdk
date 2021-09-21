@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xPolygon/polygon-sdk/helper/hex"
 	"github.com/0xPolygon/polygon-sdk/types"
+	"github.com/umbracle/fastrlp"
 )
 
 // Eth is the eth jsonrpc endpoint
@@ -205,13 +206,21 @@ func (e *Eth) GetStorageAt(address types.Address, index types.Hash, number *Bloc
 		}
 		return nil, err
 	}
-
-	return argBytesPtr(result), nil
+	//Parse the RLP value
+	p := &fastrlp.Parser{}
+	v, err := p.Parse(result)
+	if err != nil {
+		return argBytesPtr(types.ZeroHash[:]), nil
+	}
+	data, err := v.Bytes()
+	if err != nil {
+		return argBytesPtr(types.ZeroHash[:]), nil
+	}
+	return argBytesPtr(data), nil
 }
 
 // GasPrice returns the average gas price based on the last x blocks
 func (e *Eth) GasPrice() (interface{}, error) {
-
 	// Grab the average gas price and convert it to a hex value
 	avgGasPrice := hex.EncodeBig(e.d.store.GetAvgGasPrice())
 
@@ -251,13 +260,14 @@ func (e *Eth) Call(arg *txnArgs, number *BlockNumber) (interface{}, error) {
 }
 
 // EstimateGas estimates the gas needed to execute a transaction
-func (e *Eth) EstimateGas(arg *txnArgs, rawNum *BlockNumber) (interface{}, error) {
+func (e *Eth) EstimateGas(
+	arg *txnArgs,
+	rawNum *BlockNumber,
+) (interface{}, error) {
 	transaction, err := e.d.decodeTxn(arg)
 	if err != nil {
 		return nil, err
 	}
-
-	const standardGas uint64 = 21000
 
 	number := LatestBlockNumber
 	if rawNum != nil {
@@ -270,6 +280,15 @@ func (e *Eth) EstimateGas(arg *txnArgs, rawNum *BlockNumber) (interface{}, error
 		return nil, err
 	}
 
+	forksInTime := e.d.store.GetForksInTime(uint64(number))
+
+	var standardGas uint64
+	if transaction.IsContractCreation() && forksInTime.Homestead {
+		standardGas = 53000
+	} else {
+		standardGas = 21000
+	}
+
 	var (
 		lowEnd  = standardGas
 		highEnd uint64
@@ -277,8 +296,8 @@ func (e *Eth) EstimateGas(arg *txnArgs, rawNum *BlockNumber) (interface{}, error
 	)
 
 	// If the gas limit was passed in, use it as a ceiling
-	if transaction.Gas != 0 && uint64(transaction.Gas) >= standardGas {
-		highEnd = uint64(transaction.Gas)
+	if transaction.Gas != 0 && transaction.Gas >= standardGas {
+		highEnd = transaction.Gas
 	} else {
 		// If not, use the referenced block number
 		highEnd = header.GasLimit
@@ -289,7 +308,6 @@ func (e *Eth) EstimateGas(arg *txnArgs, rawNum *BlockNumber) (interface{}, error
 
 	// If the sender address is present, recalculate the ceiling to his balance
 	if transaction.From != types.ZeroAddress && transaction.GasPrice != nil && gasPriceInt.BitLen() != 0 {
-
 		// Get the account balance
 		acc, err := e.d.store.GetAccount(header.StateRoot, transaction.From)
 		if err != nil {
@@ -300,7 +318,7 @@ func (e *Eth) EstimateGas(arg *txnArgs, rawNum *BlockNumber) (interface{}, error
 
 		if transaction.Value != nil {
 			if valueInt.Cmp(available) >= 0 {
-				return 0, fmt.Errorf("insufficient funds for transfer")
+				return nil, fmt.Errorf("insufficient funds for execution")
 			}
 
 			available.Sub(available, valueInt)
@@ -471,7 +489,7 @@ func (e *Eth) GetTransactionCount(address types.Address, number *BlockNumber) (i
 	if number == nil {
 		return nil, fmt.Errorf("block parameter is required")
 	}
- 	nonce, err := e.d.getNextNonce(address, *number)
+	nonce, err := e.d.getNextNonce(address, *number)
 	if err != nil {
 		if err == ErrStateNotFound {
 			return argUintPtr(0), nil
