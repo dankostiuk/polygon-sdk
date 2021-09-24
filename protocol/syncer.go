@@ -40,7 +40,7 @@ type syncPeer struct {
 
 // Number returns the latest peer block height
 func (s *syncPeer) Number() uint64 {
-	return s.status.Number
+	return s.number
 }
 
 // purgeBlocks purges the cache of broadcasted blocks the node has written so far
