@@ -28,6 +28,9 @@ type Consensus interface {
 
 	// Close closes the connection
 	Close() error
+
+	// Returns the current ibft state
+	GetIbftState() string
 }
 
 // Config is the configuration for the consensus

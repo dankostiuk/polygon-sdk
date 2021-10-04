@@ -76,6 +76,7 @@ func (j *JSONRPC) setupHTTP() error {
 	mux := http.DefaultServeMux
 	mux.HandleFunc("/", j.handle)
 	mux.HandleFunc("/ws", j.handleWs)
+	mux.HandleFunc("/health", j.handleHealth)
 
 	srv := http.Server{
 		Handler: mux,
@@ -189,6 +190,32 @@ func (j *JSONRPC) handleWs(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (j *JSONRPC) handleHealth(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	if (*req).Method == "OPTIONS" {
+		return
+	}
+
+	if req.Method != "GET" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("method " + req.Method + " not allowed"))
+		return
+	}
+
+	if j.config.Store.GetIbftState() == "SyncState" {
+		w.WriteHeader(http.StatusTooEarly)
+		w.Write(nil)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(nil)
+}
+
 func (j *JSONRPC) handle(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -202,6 +229,7 @@ func (j *JSONRPC) handle(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("PolygonSDK JSON-RPC"))
 		return
 	}
+
 	if req.Method != "POST" {
 		w.Write([]byte("method " + req.Method + " not allowed"))
 		return

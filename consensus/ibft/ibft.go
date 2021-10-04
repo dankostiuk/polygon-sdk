@@ -937,6 +937,11 @@ func (i *Ibft) Close() error {
 	return nil
 }
 
+// GetIbftState returns the current ibft state
+func (i *Ibft) GetIbftState() string {
+	return i.getState().String()
+}
+
 // getNextMessage reads a new message from the message queue
 func (i *Ibft) getNextMessage(timeout time.Duration) (*proto.MessageReq, bool) {
 	timeoutCh := time.After(timeout)

@@ -58,10 +58,17 @@ type blockchainInterface interface {
 	// GetNonce returns the next nonce for this address
 	GetNonce(addr types.Address) (uint64, bool)
 
+	// GetIbftState gets the current Ibft state as a string
+	GetIbftState() string
+
 	stateHelperInterface
 }
 
 type nullBlockchainInterface struct {
+}
+
+func (b *nullBlockchainInterface) GetIbftState() string {
+	return ""
 }
 
 func (b *nullBlockchainInterface) GetNonce(addr types.Address) (uint64, bool) {

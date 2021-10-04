@@ -193,6 +193,10 @@ func (d *Dev) Seal(block *types.Block, ctx context.Context) (*types.Block, error
 	return nil, nil
 }
 
+func (d *Dev) GetIbftState() string {
+	return ""
+}
+
 func (d *Dev) Close() error {
 	close(d.closeCh)
 	return nil
