@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	any "google.golang.org/protobuf/types/known/anypb"
 	empty "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -27,11 +28,9 @@ type syncPeer struct {
 	peer   peer.ID
 	conn   *grpc.ClientConn
 	client proto.V1Client
-	status *Status
 
-	// current status
-	number uint64
-	hash   types.Hash
+	status     *Status
+	statusLock sync.RWMutex
 
 	enqueueLock sync.Mutex
 	enqueue     []*types.Block
@@ -40,7 +39,15 @@ type syncPeer struct {
 
 // Number returns the latest peer block height
 func (s *syncPeer) Number() uint64 {
-	return s.number
+	s.statusLock.RLock()
+	defer s.statusLock.RUnlock()
+
+	return s.status.Number
+}
+
+// IsClosed returns whether peer's connectivity has been closed
+func (s *syncPeer) IsClosed() bool {
+	return s.conn.GetState() == connectivity.Shutdown
 }
 
 // purgeBlocks purges the cache of broadcasted blocks the node has written so far
@@ -87,14 +94,17 @@ func (s *syncPeer) appendBlock(b *types.Block) {
 	// append to the end
 	s.enqueue = append(s.enqueue, b)
 
-	// update the number and hash
-	s.number = b.Number()
-	s.hash = b.Hash()
-
 	select {
 	case s.enqueueCh <- struct{}{}:
 	default:
 	}
+}
+
+func (s *syncPeer) updateStatus(status *Status) {
+	s.statusLock.Lock()
+	defer s.statusLock.Unlock()
+
+	s.status = status
 }
 
 // Status defines the up to date information regarding the peer
@@ -121,6 +131,20 @@ func (s *Status) toProto() *proto.V1Status {
 		Hash:       s.Hash.String(),
 		Difficulty: s.Difficulty.String(),
 	}
+}
+
+// fromProto converts a proto.V1Status to a Status object
+func fromProto(status *proto.V1Status) (*Status, error) {
+	diff, ok := new(big.Int).SetString(status.Difficulty, 10)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse difficulty: %s", status.Difficulty)
+	}
+
+	return &Status{
+		Number:     status.Number,
+		Hash:       types.StringToHash(status.Hash),
+		Difficulty: diff,
+	}, nil
 }
 
 // statusFromProto extracts a Status object from a passed in proto.V1Status
@@ -227,10 +251,18 @@ func (s *Syncer) enqueueBlock(peerID peer.ID, b *types.Block) {
 	}
 }
 
+func (s *Syncer) updatePeerStatus(peerID peer.ID, status *Status) {
+	s.logger.Debug("update peer status", "peer", peerID, "latest block number", status.Number, "latest block hash", status.Hash, "difficulty", status.Difficulty)
+
+	if p, ok := s.peers[peerID]; ok {
+		p.updateStatus(status)
+	}
+}
+
 // Broadcast broadcasts a block to all peers
 func (s *Syncer) Broadcast(b *types.Block) {
 	// diff is number in ibft
-	diff := new(big.Int).SetUint64(b.Number())
+	diff := new(big.Int).SetUint64(b.Header.Difficulty)
 
 	// broadcast the new block to all the peers
 	req := &proto.NotifyReq{
@@ -337,15 +369,15 @@ func (s *Syncer) HandleUser(peerID peer.ID, conn *grpc.ClientConn) error {
 		client:    clt,
 		status:    status,
 		enqueueCh: make(chan struct{}),
-		number:    status.Number,
-		hash:      status.Hash,
 	}
 	return nil
 }
 
 func (s *Syncer) DeleteUser(peerID peer.ID) error {
 	if p, ok := s.peers[peerID]; ok {
-		p.conn.Close()
+		if err := p.conn.Close(); err != nil {
+			return err
+		}
 		delete(s.peers, peerID)
 	}
 	return nil
@@ -426,8 +458,12 @@ func (s *Syncer) WatchSyncWithPeer(p *syncPeer, handler func(b *types.Block) boo
 
 	// listen and enqueue the messages
 	for {
-		b := p.popBlock()
+		if p.IsClosed() {
+			s.logger.Info("Connection to a peer has closed already", "id", p.peer)
+			break
+		}
 
+		b := p.popBlock()
 		if err := s.blockchain.WriteBlocks([]*types.Block{b}); err != nil {
 			s.logger.Error("failed to write block", "err", err)
 			break

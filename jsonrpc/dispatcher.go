@@ -239,6 +239,7 @@ func (d *Dispatcher) Handle(reqBody []byte) ([]byte, error) {
 		if req.Method == "" {
 			return NewRpcResponse(req.ID, "2.0", nil, NewInvalidRequestError("Invalid json request")).Bytes()
 		}
+
 		resp, err := d.handleReq(req)
 
 		return NewRpcResponse(req.ID, "2.0", resp, err).Bytes()
