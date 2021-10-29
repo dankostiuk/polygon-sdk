@@ -22,6 +22,7 @@ import (
 
 const (
 	defaultIdlePeriod = 1 * time.Minute
+	txMaxSize         = 128 * 1024 //128Kb
 )
 
 var (
@@ -33,6 +34,8 @@ var (
 	ErrInsufficientFunds   = errors.New("insufficient funds for gas * price + value")
 	ErrInvalidAccountState = errors.New("invalid account state")
 	ErrAlreadyKnown        = errors.New("already known")
+	// ErrOversizedData is returned if size of a transction is greater than the specified limit
+	ErrOversizedData = errors.New("oversized data")
 )
 
 var topicNameV1 = "txpool/0.1"
@@ -216,6 +219,18 @@ func (t *TxPool) addImpl(ctx string, tx *types.Transaction) error {
 	return nil
 }
 
+// DecreaseAccountNonce resets the nonce attached to an account whenever a transaction produce an error which is not
+// recoverable, meaning the transaction will be discarded.
+//
+// Since any discarded transaction should not affect the world state, the nextNonce should be reset to the value
+// it was set to before the transaction appeared.
+func (t *TxPool) DecreaseAccountNonce(tx *types.Transaction) {
+	if t.accountQueues[tx.From] != nil {
+		txnsQueue := t.accountQueues[tx.From]
+		txnsQueue.nextNonce -= 1
+	}
+}
+
 // GetTxs gets both pending and queued transactions
 func (t *TxPool) GetTxs() (map[types.Address]map[uint64]*types.Transaction, map[types.Address]map[uint64]*types.Transaction) {
 
@@ -313,6 +328,12 @@ func (t *TxPool) ProcessEvent(evnt *blockchain.Event) {
 
 // validateTx validates that the transaction conforms to specific constraints to be added to the txpool
 func (t *TxPool) validateTx(tx *types.Transaction) error {
+
+	//Check the transaction size to overcome DOS Attacks
+	if uint64(len(tx.MarshalRLP())) > txMaxSize {
+		return ErrOversizedData
+	}
+
 	// Check if the transaction has a strictly positive value
 	if tx.Value.Sign() < 0 {
 		return ErrNegativeValue
