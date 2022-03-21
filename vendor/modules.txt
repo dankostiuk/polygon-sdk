@@ -495,7 +495,7 @@ github.com/ryanuber/go-glob
 github.com/spacemonkeygo/spacelog
 # github.com/spaolacci/murmur3 v1.1.0
 github.com/spaolacci/murmur3
-# github.com/stretchr/testify v1.7.0
+# github.com/stretchr/testify v1.7.1
 ## explicit
 github.com/stretchr/testify/assert
 # github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
