@@ -8,7 +8,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
-	github.com/hashicorp/go-hclog v1.1.0
+	github.com/hashicorp/go-hclog v1.2.1
 	github.com/hashicorp/go-immutable-radix v1.3.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
@@ -26,7 +26,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/prometheus/client_golang v1.12.1
 	github.com/ryanuber/columnize v2.1.2+incompatible
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.2
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/umbracle/fastrlp v0.0.0-20211229195328-c1416904ae17
 	github.com/umbracle/go-eth-bn256 v0.0.0-20190607160430-b36caf4e0f6b
@@ -47,8 +47,6 @@ require (
 	github.com/klauspost/compress v1.14.2 // indirect
 	github.com/miekg/dns v1.1.45 // indirect
 	github.com/multiformats/go-base32 v0.0.4 // indirect
-	github.com/multiformats/go-multihash v0.1.0 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/valyala/fastjson v1.6.3 // indirect
 	go.uber.org/zap v1.20.0 // indirect
 	golang.org/x/net v0.0.0-20220127074510-2fabfed7e28f // indirect
