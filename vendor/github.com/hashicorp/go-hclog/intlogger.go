@@ -48,6 +48,12 @@ var (
 		Warn:  color.New(color.FgHiYellow),
 		Error: color.New(color.FgHiRed),
 	}
+
+	faintBoldColor                 = color.New(color.Faint, color.Bold)
+	faintColor                     = color.New(color.Faint)
+	faintMultiLinePrefix           = faintColor.Sprint("  | ")
+	faintFieldSeparator            = faintColor.Sprint("=")
+	faintFieldSeparatorWithNewLine = faintColor.Sprint("=\n")
 )
 
 // Make sure that intLogger is a Logger
@@ -68,6 +74,9 @@ type intLogger struct {
 	mutex  Locker
 	writer *writer
 	level  *int32
+
+	headerColor ColorOption
+	fieldColor  ColorOption
 
 	implied []interface{}
 
@@ -113,6 +122,21 @@ func newLogger(opts *LoggerOptions) *intLogger {
 		mutex = new(sync.Mutex)
 	}
 
+	var (
+		primaryColor ColorOption = ColorOff
+		headerColor  ColorOption = ColorOff
+		fieldColor   ColorOption = ColorOff
+	)
+	switch {
+	case opts.ColorHeaderOnly:
+		headerColor = opts.Color
+	case opts.ColorHeaderAndFields:
+		fieldColor = opts.Color
+		headerColor = opts.Color
+	default:
+		primaryColor = opts.Color
+	}
+
 	l := &intLogger{
 		json:              opts.JSONFormat,
 		name:              opts.Name,
@@ -120,10 +144,12 @@ func newLogger(opts *LoggerOptions) *intLogger {
 		timeFn:            time.Now,
 		disableTime:       opts.DisableTime,
 		mutex:             mutex,
-		writer:            newWriter(output, opts.Color),
+		writer:            newWriter(output, primaryColor),
 		level:             new(int32),
 		exclude:           opts.Exclude,
 		independentLevels: opts.IndependentLevels,
+		headerColor:       headerColor,
+		fieldColor:        fieldColor,
 	}
 	if opts.IncludeLocation {
 		l.callerOffset = offsetIntLogger + opts.AdditionalLocationOffset
@@ -147,7 +173,7 @@ func newLogger(opts *LoggerOptions) *intLogger {
 }
 
 // offsetIntLogger is the stack frame offset in the call stack for the caller to
-// one of the Warn,Info,Log,etc methods.
+// one of the Warn, Info, Log, etc methods.
 const offsetIntLogger = 3
 
 // Log a message and a set of key/value pairs if the given level is at
@@ -222,7 +248,18 @@ func needsQuoting(str string) bool {
 	return false
 }
 
-// Non-JSON logging format function
+// logPlain is the non-JSON logging format function which writes directly
+// to the underlying writer the logger was initialized with.
+//
+// If the logger was initialized with a color function, it also handles
+// applying the color to the log message.
+//
+// Color Options
+//  1. No color.
+//  2. Color the whole log line, based on the level.
+//  3. Color only the header (level) part of the log line.
+//  4. Color both the header and fields of the log line.
+//
 func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, args ...interface{}) {
 
 	if !l.disableTime {
@@ -232,7 +269,12 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 
 	s, ok := _levelToBracket[level]
 	if ok {
-		l.writer.WriteString(s)
+		if l.headerColor != ColorOff {
+			color := _levelToColor[level]
+			color.Fprint(l.writer, s)
+		} else {
+			l.writer.WriteString(s)
+		}
 	} else {
 		l.writer.WriteString("[?????]")
 	}
@@ -251,16 +293,19 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 
 	if name != "" {
 		l.writer.WriteString(name)
-		l.writer.WriteString(": ")
+		if msg != "" {
+			l.writer.WriteString(": ")
+			l.writer.WriteString(msg)
+		}
+	} else if msg != "" {
+		l.writer.WriteString(msg)
 	}
-
-	l.writer.WriteString(msg)
 
 	args = append(l.implied, args...)
 
 	var stacktrace CapturedStacktrace
 
-	if args != nil && len(args) > 0 {
+	if len(args) > 0 {
 		if len(args)%2 != 0 {
 			cs, ok := args[len(args)-1].(CapturedStacktrace)
 			if ok {
@@ -274,13 +319,16 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 
 		l.writer.WriteByte(':')
 
+		// Handle the field arguments, which come in pairs (key=val).
 	FOR:
 		for i := 0; i < len(args); i = i + 2 {
 			var (
+				key string
 				val string
 				raw bool
 			)
 
+			// Convert the field value to a string.
 			switch st := args[i+1].(type) {
 			case string:
 				val = st
@@ -332,8 +380,7 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 				}
 			}
 
-			var key string
-
+			// Convert the field key to a string.
 			switch st := args[i].(type) {
 			case string:
 				key = st
@@ -341,21 +388,47 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 				key = fmt.Sprintf("%s", st)
 			}
 
+			// Optionally apply the ANSI "faint" and "bold"
+			// SGR values to the key.
+			if l.fieldColor != ColorOff {
+				key = faintBoldColor.Sprint(key)
+			}
+
+			// Values may contain multiple lines, and that format
+			// is preserved, with each line prefixed with a "  | "
+			// to show it's part of a collection of lines.
+			//
+			// Values may also need quoting, if not all the runes
+			// in the value string are "normal", like if they
+			// contain ANSI escape sequences.
 			if strings.Contains(val, "\n") {
 				l.writer.WriteString("\n  ")
 				l.writer.WriteString(key)
-				l.writer.WriteString("=\n")
-				writeIndent(l.writer, val, "  | ")
+				if l.fieldColor != ColorOff {
+					l.writer.WriteString(faintFieldSeparatorWithNewLine)
+					writeIndent(l.writer, val, faintMultiLinePrefix)
+				} else {
+					l.writer.WriteString("=\n")
+					writeIndent(l.writer, val, "  | ")
+				}
 				l.writer.WriteString("  ")
 			} else if !raw && needsQuoting(val) {
 				l.writer.WriteByte(' ')
 				l.writer.WriteString(key)
-				l.writer.WriteByte('=')
+				if l.fieldColor != ColorOff {
+					l.writer.WriteString(faintFieldSeparator)
+				} else {
+					l.writer.WriteByte('=')
+				}
 				l.writer.WriteString(strconv.Quote(val))
 			} else {
 				l.writer.WriteByte(' ')
 				l.writer.WriteString(key)
-				l.writer.WriteByte('=')
+				if l.fieldColor != ColorOff {
+					l.writer.WriteString(faintFieldSeparator)
+				} else {
+					l.writer.WriteByte('=')
+				}
 				l.writer.WriteString(val)
 			}
 		}
